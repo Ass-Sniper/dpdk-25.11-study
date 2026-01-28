@@ -16,8 +16,6 @@
 - Throughput per tenant/policy.
 - Drop reasons (parse, unmatched, rate-limit).
 - TopK flows and tenants for hot-spot analysis.
-<<<<<<< ours
-=======
 
 ## Local Script Checks (No DPDK Runtime)
 
@@ -46,4 +44,134 @@ Suggested perf workflow:
   3) Use a traffic generator (pktgen, moongen, trex) to push flows
   4) Capture throughput, drops, and TopK stats output
 ```
->>>>>>> theirs
+
+## QEMU Two-Node Test (Ubuntu 20.04)
+
+The following steps describe a minimal QEMU setup with two VMs connected by a virtual
+bridge: one VM runs `pktgen` as a traffic generator, the other runs `dpdk-tenant-qos-v2`.
+The steps assume you have DPDK 25.11 sources and `dpdk-pktgen` built for aarch64 or
+x86_64 inside the VMs.
+
+### Host prerequisites
+
+```bash
+sudo apt-get update
+sudo apt-get install -y qemu-system-x86 bridge-utils cloud-image-utils
+```
+
+Create a Linux bridge for the two VMs:
+
+```bash
+sudo ip link add name br0 type bridge
+sudo ip link set br0 up
+```
+
+### Prepare Ubuntu 20.04 cloud images
+
+```bash
+wget https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
+qemu-img create -f qcow2 -b focal-server-cloudimg-amd64.img vm-pktgen.qcow2 20G
+qemu-img create -f qcow2 -b focal-server-cloudimg-amd64.img vm-dp.qcow2 20G
+```
+
+Create cloud-init user-data for each VM (passwordless sudo + SSH key):
+
+```bash
+cat <<'EOF' > user-data.yaml
+#cloud-config
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - <your-ssh-public-key>
+EOF
+cloud-localds -v seed.img user-data.yaml
+```
+
+### Launch QEMU VMs
+
+Run pktgen VM:
+
+```bash
+sudo qemu-system-x86_64 \\
+  -enable-kvm -cpu host -smp 4 -m 4096 \\
+  -drive file=vm-pktgen.qcow2,if=virtio \\
+  -drive file=seed.img,if=virtio \\
+  -netdev bridge,id=net0,br=br0 \\
+  -device virtio-net-pci,netdev=net0 \\
+  -nographic
+```
+
+Run dataplane VM:
+
+```bash
+sudo qemu-system-x86_64 \\
+  -enable-kvm -cpu host -smp 4 -m 4096 \\
+  -drive file=vm-dp.qcow2,if=virtio \\
+  -drive file=seed.img,if=virtio \\
+  -netdev bridge,id=net0,br=br0 \\
+  -device virtio-net-pci,netdev=net0 \\
+  -nographic
+```
+
+### Inside each VM
+
+Install dependencies and build DPDK:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential meson ninja-build libnuma-dev pkg-config
+git clone https://github.com/DPDK/dpdk.git
+cd dpdk
+git checkout v25.11
+meson build
+ninja -C build
+sudo ninja -C build install
+sudo ldconfig
+```
+
+Configure hugepages:
+
+```bash
+echo 1024 | sudo tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+sudo mkdir -p /dev/hugepages
+sudo mount -t hugetlbfs nodev /dev/hugepages
+```
+
+### pktgen VM
+
+Install pktgen (example uses dpdk-pktgen):
+
+```bash
+git clone https://github.com/pktgen/Pktgen-DPDK.git
+cd Pktgen-DPDK
+make
+```
+
+Run pktgen (adjust core mask and port for virtio):
+
+```bash
+sudo ./app/app/x86_64-native-linux-gcc/pktgen \\
+  -l 0-2 -n 4 -- \\
+  -m \"[1:2].0\" \\
+  -P
+```
+
+### dataplane VM
+
+Build and run dpdk-tenant-qos-v2:
+
+```bash
+git clone <your-repo-url>
+cd dpdk-tenant-qos-v2
+make
+python3 scripts/gen_rules.py --rules 1024 --tenants 8 --output rules.csv
+sudo ./build/dpdk-tenant-qos-v2 -l 0-2 -n 4 -- \\
+  --portmask 0x1 --tenants 8 --rules 4096 --rules-file rules.csv --stats-interval 5
+```
+
+### Validation
+
+- Use pktgen to transmit packets to the dataplane VM.
+- Observe periodic stats output from `dpdk-tenant-qos-v2` (drops + TopK).
+- Capture throughput using pktgen counters and compare with expected tenant limits.
