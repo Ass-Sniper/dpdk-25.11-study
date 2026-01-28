@@ -49,14 +49,14 @@ Suggested perf workflow:
 
 The following steps describe a minimal QEMU setup with two VMs connected by a virtual
 bridge: one VM runs `pktgen` as a traffic generator, the other runs `dpdk-tenant-qos-v2`.
-The steps assume you have DPDK 25.11 sources and `dpdk-pktgen` built for aarch64 or
-x86_64 inside the VMs.
+The steps assume you have DPDK 25.11 sources and `dpdk-pktgen` built for aarch64
+inside the VMs.
 
-### Host prerequisites
+### Host prerequisites (aarch64)
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y qemu-system-x86 bridge-utils cloud-image-utils
+sudo apt-get install -y qemu-system-arm bridge-utils cloud-image-utils
 ```
 
 Create a Linux bridge for the two VMs:
@@ -66,12 +66,12 @@ sudo ip link add name br0 type bridge
 sudo ip link set br0 up
 ```
 
-### Prepare Ubuntu 20.04 cloud images
+### Prepare Ubuntu 20.04 cloud images (aarch64)
 
 ```bash
-wget https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
-qemu-img create -f qcow2 -b focal-server-cloudimg-amd64.img vm-pktgen.qcow2 20G
-qemu-img create -f qcow2 -b focal-server-cloudimg-amd64.img vm-dp.qcow2 20G
+wget https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-arm64.img
+qemu-img create -f qcow2 -b focal-server-cloudimg-arm64.img vm-pktgen.qcow2 20G
+qemu-img create -f qcow2 -b focal-server-cloudimg-arm64.img vm-dp.qcow2 20G
 ```
 
 Create cloud-init user-data for each VM (passwordless sudo + SSH key):
@@ -88,13 +88,14 @@ EOF
 cloud-localds -v seed.img user-data.yaml
 ```
 
-### Launch QEMU VMs
+### Launch QEMU VMs (aarch64)
 
 Run pktgen VM:
 
 ```bash
-sudo qemu-system-x86_64 \\
-  -enable-kvm -cpu host -smp 4 -m 4096 \\
+sudo qemu-system-aarch64 \\
+  -machine virt,gic-version=3 -cpu cortex-a72 -smp 4 -m 4096 \\
+  -bios /usr/share/AAVMF/AAVMF_CODE.fd \\
   -drive file=vm-pktgen.qcow2,if=virtio \\
   -drive file=seed.img,if=virtio \\
   -netdev bridge,id=net0,br=br0 \\
@@ -105,8 +106,9 @@ sudo qemu-system-x86_64 \\
 Run dataplane VM:
 
 ```bash
-sudo qemu-system-x86_64 \\
-  -enable-kvm -cpu host -smp 4 -m 4096 \\
+sudo qemu-system-aarch64 \\
+  -machine virt,gic-version=3 -cpu cortex-a72 -smp 4 -m 4096 \\
+  -bios /usr/share/AAVMF/AAVMF_CODE.fd \\
   -drive file=vm-dp.qcow2,if=virtio \\
   -drive file=seed.img,if=virtio \\
   -netdev bridge,id=net0,br=br0 \\
@@ -148,10 +150,10 @@ cd Pktgen-DPDK
 make
 ```
 
-Run pktgen (adjust core mask and port for virtio):
+Run pktgen (adjust core mask and port for virtio, aarch64 build output path may differ):
 
 ```bash
-sudo ./app/app/x86_64-native-linux-gcc/pktgen \\
+sudo ./app/app/aarch64-native-linux-gcc/pktgen \\
   -l 0-2 -n 4 -- \\
   -m \"[1:2].0\" \\
   -P
