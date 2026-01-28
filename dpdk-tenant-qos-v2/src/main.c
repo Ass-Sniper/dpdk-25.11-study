@@ -32,7 +32,7 @@ static int dp_port_init(uint16_t port_id, uint16_t rx_queues, uint16_t tx_queues
                         struct rte_mempool *mbuf_pool) {
     struct rte_eth_conf port_conf = {
         .rxmode = {
-            .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
+            .mq_mode = RTE_ETH_MQ_RX_NONE,
         },
     };
 
@@ -57,6 +57,13 @@ static int dp_port_init(uint16_t port_id, uint16_t rx_queues, uint16_t tx_queues
             return ret;
         }
     }
+
+    ret = rte_eth_dev_set_mtu(port_id, RTE_ETHER_MTU);
+    if (ret < 0) {
+        rte_exit(EXIT_FAILURE,
+             "set_mtu(%u) failed: %s\n",
+             port_id, rte_strerror(-ret));
+    }    
 
     ret = rte_eth_dev_start(port_id);
     if (ret < 0) {
@@ -145,7 +152,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    rte_eal_mp_remote_launch(dp_lcore_main, &context, CALL_MASTER);
+    rte_eal_mp_remote_launch(dp_lcore_main, &context, CALL_MAIN);
     RTE_LCORE_FOREACH_WORKER(ret) {
         rte_eal_wait_lcore(ret);
     }

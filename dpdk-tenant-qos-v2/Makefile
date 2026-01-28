@@ -9,6 +9,7 @@ DPDK_CFLAGS := $(shell $(PKG_CONFIG) --cflags libdpdk 2>/dev/null)
 DPDK_LDFLAGS := $(shell $(PKG_CONFIG) --libs libdpdk 2>/dev/null)
 
 CFLAGS ?= -O3 -g -Wall -Wextra -Wformat -Wformat-security
+CFLAGS += -I$(SRC_DIR)
 LDFLAGS ?=
 
 SRCS := $(wildcard $(SRC_DIR)/*.c) \
