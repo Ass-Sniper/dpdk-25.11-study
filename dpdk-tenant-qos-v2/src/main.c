@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <rte_cycles.h>
 #include <rte_eal.h>
@@ -58,19 +59,33 @@ static int dp_port_init(uint16_t port_id, uint16_t rx_queues, uint16_t tx_queues
         }
     }
 
+    struct rte_eth_dev_info dev_info;
+    memset(&dev_info, 0, sizeof(dev_info));
+
+    ret = rte_eth_dev_info_get(port_id, &dev_info);
+    if (ret < 0) {
+        RTE_LOG(WARNING, USER1,
+            "dev_info_get(%u) failed: %s (continue)\n",
+                port_id, rte_strerror(-ret));
+    }
+
+    /* Some virtual devices (e.g. net_vhost) may not support MTU/promisc; treat as best-effort. */    
     ret = rte_eth_dev_set_mtu(port_id, RTE_ETHER_MTU);
     if (ret < 0) {
-        rte_exit(EXIT_FAILURE,
-             "set_mtu(%u) failed: %s\n",
-             port_id, rte_strerror(-ret));
-    }    
+        RTE_LOG(WARNING, USER1, "set_mtu(%u) not supported: %s\n",
+            port_id, rte_strerror(-ret));
+    }   
 
     ret = rte_eth_dev_start(port_id);
     if (ret < 0) {
         return ret;
     }
 
-    rte_eth_promiscuous_enable(port_id);
+    ret = rte_eth_promiscuous_enable(port_id);
+    if (ret < 0) {
+        RTE_LOG(WARNING, USER1, "promiscuous_enable(%u) not supported: %s\n",
+            port_id, rte_strerror(-ret));
+    }
     return 0;
 }
 
@@ -80,11 +95,28 @@ static int dp_lcore_main(void *arg) {
     const uint16_t queue_id = 0;
     struct rte_mbuf *pkts[DP_RX_BURST];
 
+    uint32_t idle_loops = 0;
+
     while (!dp_force_quit) {
         uint16_t nb_rx = rte_eth_rx_burst(port_id, queue_id, pkts, DP_RX_BURST);
         if (nb_rx == 0) {
+
+            /*
+            * Idle backoff:
+            * - rte_pause(): reduce power / HT contention
+            * - occasional sleep to drop CPU usage
+            */
+            rte_pause();
+
+            if (++idle_loops > 1024) {
+                rte_delay_us_sleep(50); /* 50us */
+                idle_loops = 0;
+            }
+
             continue;
         }
+
+        idle_loops = 0;
 
         for (uint16_t i = 0; i < nb_rx; i++) {
             struct rte_mbuf *mbuf = pkts[i];
