@@ -1,4 +1,4 @@
-APP := dpdk-tenant-qos-v2
+APP := tenant-qos
 BUILD_DIR := build
 SRC_DIR := src
 

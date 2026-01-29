@@ -1,43 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# run_min.sh 所在目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# =============================================================================
+# tenant-qos minimal dataplane (vhost-user backend)
+# =============================================================================
 
-# dpdk-tenant-qos-v2 根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROOT}"
 
-# workspace 级 env.sh
-ENV_SH="${ROOT}/../../scripts/env.sh"
+# ===== load shared config =====
+source "${ROOT}/../../env/config/parse.sh"
+load_config backend
+
+# ===== workspace env =====
+ENV_SH="${ROOT}/../../../scripts/env.sh"
 echo "Loading env from ${ENV_SH}"
 source "${ENV_SH}"
 
-BIN="${ROOT}/build/dpdk-tenant-qos-v2"
+BIN="${ROOT}/build/tenant-qos"
 
 EAL_ARGS=(
-  -l 0-1
-  -n 4
-  --file-prefix tenantqos
+  -l "${LCORES}"
+  -n "${MEM_CHANNELS}"
+  --file-prefix "${FILE_PREFIX}"
   --proc-type auto
 )
 
 VDEV_ARGS=(
-  --vdev=net_vhost0,iface=/tmp/tenantqos-vhost0,queues=1,client=0
+  --vdev=net_vhost0,iface="${VHOST_SOCK}",queues="${QUEUES}",client=0
 )
 
 APP_ARGS=(
-  # --rules "${ROOT}/rules.csv"
+  # --rules "${RULES_FILE}"
 )
 
-SOCK="/tmp/tenantqos-vhost0"
-if [[ -S "${SOCK}" ]]; then
-  echo "[WARN] Removing stale vhost-user socket: ${SOCK}"
-  rm -f "${SOCK}"
+# ===== vhost socket =====
+if [[ -S "${VHOST_SOCK}" ]]; then
+  echo "[WARN] Removing stale vhost-user socket: ${VHOST_SOCK}"
+  rm -f "${VHOST_SOCK}"
 fi
 
-echo "== RUN =="
+echo "== RUN tenant-qos (DPDK backend) =="
 echo "${BIN} ${EAL_ARGS[*]} ${VDEV_ARGS[*]} -- ${APP_ARGS[*]}"
 
-exec "${BIN}" "${EAL_ARGS[@]}" "${VDEV_ARGS[@]}" -- "${APP_ARGS[@]}"
+exec "${BIN}" \
+  "${EAL_ARGS[@]}" \
+  "${VDEV_ARGS[@]}" \
+  -- "${APP_ARGS[@]}"
 

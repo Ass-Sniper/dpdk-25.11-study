@@ -12,7 +12,7 @@ echo "Generated rules: $OUTPUT"
 
 cat <<'NOTE'
 Suggested perf workflow:
-  1) Build dpdk-tenant-qos-v2 with DPDK 25.11
+  1) Build tenant-qos with DPDK 25.11
   2) Run scripts/run.sh with appropriate EAL flags
   3) Use a traffic generator (pktgen, moongen, trex) to push flows
   4) Capture throughput, drops, and TopK stats output

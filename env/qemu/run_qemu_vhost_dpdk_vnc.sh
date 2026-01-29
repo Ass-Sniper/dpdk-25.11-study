@@ -53,7 +53,6 @@ exec "$QEMU_BIN" \
   -netdev "vhost-user,id=net0,chardev=char0,queues=${QUEUES}" \
   -device "virtio-net-pci,netdev=net0,mac=${DATA_MAC},mq=on,vectors=$((QUEUES*2+2))" \
   \
-  -nographic \
-  -serial stdio \
-  -monitor none
+  -device VGA \
+  -display vnc=127.0.0.1:1  
 
