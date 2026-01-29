@@ -1,0 +1,33 @@
+# ===== Editor / IDE =====
+.vscode/
+.vscode-ctags
+*.swp
+*.swo
+*~
+
+# ===== Build / Runtime artifacts =====
+*.o
+*.a
+*.so
+*.log
+*.pid
+
+# ===== DPDK / C project =====
+build/
+build-*/
+out/
+dist/
+
+# ===== Project-specific untracked files =====
+dpdk-tenant-qos-v2/rules.csv
+
+dpdk-tenant-qos-v2/scripts/fix_owner_perm.sh
+dpdk-tenant-qos-v2/scripts/run_min.sh
+scripts/run_qemu_install.sh
+
+off/
+
+# ===== OS junk =====
+.DS_Store
+Thumbs.db
+
