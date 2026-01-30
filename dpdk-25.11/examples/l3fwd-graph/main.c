@@ -145,9 +145,9 @@ static struct rte_mempool *pktmbuf_pool[RTE_MAX_ETHPORTS][NB_SOCKETS];
 static struct rte_node_ethdev_config ethdev_conf[RTE_MAX_ETHPORTS];
 
 struct ipv4_l3fwd_lpm_route {
-	uint32_t ip;
-	uint8_t depth;
-	uint8_t if_out;
+	uint32_t ip;    /**< IPv4地址（网络字节序，大端）*/
+	uint8_t depth;  /**< 子网掩码长度，即CIDR前缀长度 */
+	uint8_t if_out; /**< 输出接口索引（端口号）* 表示匹配此路由的数据包应该从哪个网络接口转发出去 * 对应DPDK中的端口ID，如0, 1, 2, ... */
 };
 
 struct ipv6_l3fwd_lpm_route {
